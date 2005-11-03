@@ -1,0 +1,36 @@
+---
+name: Template-TAL
+version: 0.8
+author: ~
+abstract: Process TAL templates with Perl
+license: perl
+requires:
+  Test::More: 0
+  Test::XML: 0
+  XML::LibXML: 0
+  perl: 5.008
+provides:
+  Template::TAL:
+    file: lib/Template/TAL.pm
+    version: 0.8
+  Template::TAL::Language:
+    file: lib/Template/TAL/Language.pm
+  Template::TAL::Language::METAL:
+    file: lib/Template/TAL/Language/METAL.pm
+  Template::TAL::Language::TAL:
+    file: lib/Template/TAL/Language/TAL.pm
+  Template::TAL::Output:
+    file: lib/Template/TAL/Output.pm
+  Template::TAL::Output::HTML:
+    file: lib/Template/TAL/Output/HTML.pm
+  Template::TAL::Output::XML:
+    file: lib/Template/TAL/Output/XML.pm
+  Template::TAL::Provider:
+    file: lib/Template/TAL/Provider.pm
+  Template::TAL::Provider::Disk:
+    file: lib/Template/TAL/Provider/Disk.pm
+  Template::TAL::TALES:
+    file: lib/Template/TAL/TALES.pm
+  Template::TAL::Template:
+    file: lib/Template/TAL/Template.pm
+generated_by: Module::Build version 0.2611
