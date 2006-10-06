@@ -4,6 +4,8 @@ default builtin page variables
 
 'letter' element of RepeatValue
 
-the Disk provider needs some security considerations.
-
 Perhaps Template::TAL::Language::PETAL.
+
+METAL
+
+Strip namespaces from the output dom

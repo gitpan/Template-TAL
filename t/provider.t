@@ -4,7 +4,7 @@ use strict;
 use Data::Dumper;
 use FindBin qw( $Bin );
 use Test::XML;
-use Test::More tests => 6;
+use Test::More tests => 5;
 
 use Template::TAL;
 use Template::TAL::Provider::Disk;
@@ -13,8 +13,6 @@ ok( my $provider = Template::TAL::Provider::Disk->new->include_path($Bin),
   "created provider" );
 ok( my $template = $provider->get_template("simple.tal"), "got template" );
 my $expected = `cat $Bin/simple.tal`;
-is($template->source, $expected);
-
 
 ok(!eval{ $provider->get_template("../Build.PL") }, "can't get template outside of 't' ($@)" );
 

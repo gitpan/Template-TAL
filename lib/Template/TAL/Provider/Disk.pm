@@ -9,7 +9,7 @@ Template::TAL::Provider::Disk - find template files on disk
   
 =head1 DESCRIPTION
 
-A Template::TAL::Provider that creates template objects from files disk.
+A Template::TAL::Provider that creates template objects from files on disk.
 
 Given a list of include paths, it will search them in order, looking for a
 named template, then return it in a L<Template::TAL::Template> object.
@@ -74,11 +74,7 @@ sub get_template {
       croak("not loading $filename from outside include path")
         unless $abs =~ /^\Q$path/;
       
-      open my $tfh, "<", $filename
-        or croak("can't open template file '$filename': $!");
-
-      local $/;
-      return Template::TAL::Template->new->source( <$tfh> );
+      return Template::TAL::Template->new->filename( $filename );
     }
   }
   croak("no template '$name' found");

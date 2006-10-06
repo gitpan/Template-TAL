@@ -2,7 +2,7 @@
 use warnings;
 use strict;
 use Data::Dumper;
-use Test::More tests => 9;
+use Test::More tests => 11;
 use FindBin qw($Bin);
 use Test::XML;
 use Encode;
@@ -43,5 +43,12 @@ for my $charset (qw( utf-8 iso-8859-1 iso-8859-2)) {
   is_xml($output, $expected, "xml for $charset") or warn $output,$expected;
 }
 
+ok( my $tt = Template::TAL->new(
+  output => "Template::TAL::Output::XML",
+  charset => "ASCII",
+), "got TT object for XML / ASCII output");
 
+my $output = $tt->process(\$template, $data);
+
+like( $output, qr/&#233;/, "ascii encoded");
 

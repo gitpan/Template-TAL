@@ -71,16 +71,17 @@ package Template::TAL;
 use warnings;
 use strict;
 use Carp qw( croak );
-
+use UNIVERSAL::require;
 use Scalar::Util qw( blessed );
 
-our $VERSION = "0.8";
+our $VERSION = "0.9";
 
 use Template::TAL::Template;
 use Template::TAL::Provider;
 use Template::TAL::Provider::Disk;
 use Template::TAL::Output::XML;
 use Template::TAL::Output::HTML;
+use Template::TAL::ValueParser;
 
 =head1 METHODS
 
@@ -143,6 +144,10 @@ sub new {
     $self->output->charset( delete $args{charset} );
   }
 
+  $self->add_language("Template::TAL::Language::TALES");
+  $self->add_language("Template::TAL::Language::TAL");
+  $self->add_language("Template::TAL::Language::METAL");
+
   return $self;
 }
 
@@ -157,6 +162,40 @@ sub output {
   my $self = shift;
   return $self->{output} ||= Template::TAL::Output::HTML->new() unless @_;
   $self->{output} = blessed($_[0]) ? $_[0] : $_[0]->new();
+  return $self;
+}
+
+=item languages
+
+a listref of language plugins we will use when parsing. All
+templates get at least the L<Template::TAL::Language:TAL> language module.
+
+=cut
+
+sub languages {
+  my $self = shift;
+  return $self->{languages} ||= [] unless @_;
+  $self->{languages} = ref($_[0]) ? shift : [ @_ ];
+  return $self;
+}
+
+=item add_language( language module, module, module... )
+
+adds a language to the list of those used by the template renderer. 'module'
+here can be a classname or an instance.
+
+=cut
+
+sub add_language {
+  my $self = shift;
+  for (@_) {
+    my $language = $_; # take a modifiable copy.
+    unless (ref($language)) {
+      $language->require or die "Can't load language '$language': $@";
+      $language = $language->new;
+    }
+    push @{ $self->{languages} }, $language;
+  }
   return $self;
 }
 
@@ -187,13 +226,136 @@ sub process {
     croak("Can't understand object of type ".ref($template)." as a template");
   }
 
-  # TODO - Add METAL language module here, while we have the provider.
-#   $template->add_language(
-#     Template::TAL::Language::METAL->new->provider( $self->provider )
-#   );
+  # walk the template, converting the DOM tree as we go. Local context
+  # starts as empty, global context is the template data.
+  my $dom = $template->document->cloneNode(1); # deep clone
+  $self->_process_node( $dom->documentElement, {}, $data );
 
-  my $dom = $template->process($data);
   return $self->output->render( $dom );
+}
+
+# this processes a given DOM node with the passed contexts, using the
+# language plugins, and manipulates the DOM node
+# according to the instructions of the plugins. Returns nothing
+# interesting - it is expected to change the DOM tree in place.
+#
+# this method is private because it shouldn't be exposed to the user,
+# but the TAL language module calls it, so it's not 'properly' private.
+sub _process_node {
+  my ($self, $node, $local_context, $global_context) = @_;
+
+  # we only care about handling elements - text nodes, etc, don't have
+  # attributes and therefore can't be munged.
+  return unless $node->nodeType == 1;
+
+  # a mapping of namespaces->plugin class for fast lookup later.
+  my %namespaces = map { $_->namespace => $_ } grep { $_->namespace } @{ $self->languages };
+  
+  # we have to make a distinction between local and global context,
+  # because the define tag can set into the global context. Curses.
+  $global_context ||= {};
+  $local_context ||= {};
+
+  # make a shallow copy. Shallow is enough, because we can't set deep paths.
+  $local_context = { %$local_context };
+
+  # record attributes of the node we're processing, but leave them
+  # in place, so recursive processing gets a chance to look at them
+  # again later
+  my %attrs; # will be $attrs{ language module namespace uri }{ tag name }
+  for my $attribute ($node->attributes) {
+    my $uri = $attribute->getNamespaceURI;
+    next unless $uri and $attribute->nodeType == 2; # attributes with namespaces only
+    if ( $namespaces{ $uri } ) {
+      # we have a handler for this namespace
+      $attrs{ $uri }{ $attribute->name } = $attribute->value;
+    }
+  }
+
+  # If at any point something replaces the whole node, we can stop thinking,
+  # and return, as the new node is supposed to have already been processed.
+  # Record this state here.
+  my $replaced = 0; 
+
+  # for all our language classes (in order)
+  LANGUAGE: for my $language ( @{ $self->languages } ) {
+    # only process if the language is referenced.
+    next unless $language->namespace and exists $attrs{ $language->namespace };
+
+    # the languages have an ordered list of tag types they want to deal with.
+    OPS: for my $type ($language->tags) {
+      next unless exists $attrs{ $language->namespace }{ $type };
+
+      # remove this attribute from the node first, recursive processing
+      # wants to see all _other_ attributes, but not the one that caused
+      # the recursion in the first place.
+      $node->removeAttributeNS( $language->namespace, $type );
+      
+      # handle this attribute
+      my $sub = "process_tag_$type"; $sub =~ s/\-/_/;
+      Carp::croak("language module $language can't handle nodes of type '$type', as claimed")
+        unless $language->can($sub);
+      my @replace = $language->$sub($self, $node, $attrs{ $language->namespace }{ $type }, $local_context, $global_context);
+  
+      # remove from the todo list, so we can track unhandled attributes later.
+      delete $attrs{ $language->namespace }{ $type };
+  
+      # if we're replacing the node with something else as a result of the
+      # attribute, do so. Once we've done that, we're finished, so leave.
+      if (!@replace) {
+        # remove the node
+        $node->parentNode->removeChild( $node );
+        $replaced = 1;
+  
+      } elsif (@replace and $replace[0] != $node) {
+        # replacing with something else. There's no nice 'replace this
+        # single node with this list of nodes' operator, so we need this
+        # fairly nasty cludge.
+        my $this = shift @replace;
+        $node->replaceNode($this);
+        for (@replace) {
+          $this->parentNode->insertAfter($_, $this);
+          $this = $_;
+        }
+        $replaced = 1;
+      }
+  
+      if ($replaced) {
+        delete $attrs{ $language->namespace }; # because the handler will have dealt with them
+        last LANGUAGE; # there's no point.
+      }
+
+    } # ops loop
+
+    # complain about any other attributes on the node
+    warn sprintf("unhandled TAL attributes '%s' in namespace '%s' on element '%s' at line %d\n",
+                 join(',', keys %{ $attrs{ $language->namespace } }),
+                 $language->namespace, $node->nodeName, $node->line_number)
+      if %{ $attrs{ $language->namespace } };
+
+  } # languages loop
+  
+
+  # now recurse into child nodes, unless we replaced the current node, in
+  # which case we assume that it's been dealt with.
+  unless ($replaced) {
+    for my $child ( $node->childNodes() ) {
+      $self->_process_node( $child, $local_context, $global_context );
+    }
+  }
+}
+
+=item parse_tales( value, context, context,... )
+
+Parses a TALES string (see http://www.zope.org/Wikis/DevSite/Projects/ZPT/TALES),
+looking in each of the passed contexts in order for variable values, and returns
+the value.
+
+=cut
+
+sub parse_tales {
+  my ($self, $value, @contexts) = @_;
+  return Template::TAL::ValueParser->value($value, \@contexts, $self->languages);
 }
 
 =back

@@ -2,7 +2,7 @@
 use warnings;
 use strict;
 use Data::Dumper;
-use Test::More tests => 16;
+use Test::More tests => 36;
 use FindBin qw( $Bin );
 use File::Spec::Functions;
 use Test::XML;
@@ -36,26 +36,35 @@ my $data = {
   utf8 => "this string contains an e-acute: \x{e9}",
 };
 
-ok( my $tt = Template::TAL->new(
-  include_path => [ catdir($Bin, "tests") ],
-  output => "Template::TAL::Output::XML",
-), "got tt");
+run_tests('tests');
 
-# read all tests from the test suite folder
-ok( opendir(TESTS, catdir($Bin, "tests")), 'opened tests folder' );
-my @tests = grep { s/\.tal$// } readdir(TESTS);
-ok(@tests, "have ".~~@tests." tests");
-
-for my $test (@tests) {
-  my $expected = slurp(catfile($Bin, 'tests', "${test}.out"))
-    or die "no output file for test $test";
-  my $output = $tt->process("${test}.tal", $data)
-    or die "no output from template $test";
-  is_xml($output, $expected, "test '$test' passed")
-    or die "###############\n$output\n###############\n  !=\n###############\n$expected\n###############";
+TODO: {
+  run_tests('todo', "todo tests");
 }
 
+sub run_tests {
+  my $folder = shift;
+  my $todo = shift;
+  
+  ok( my $tt = Template::TAL->new(
+    include_path => [ catdir($Bin, $folder) ],
+    output => "Template::TAL::Output::XML",
+  ), "got tt");
+  
+  # read all tests from the test suite folder
+  ok( opendir(TESTS, catdir($Bin, $folder)), "opened '$folder' folder" );
+  my @tests = grep { !/^\./ } grep { s/\.tal$// } readdir(TESTS);
+  ok(@tests, "have ".~~@tests." '$folder' tests");
 
+  local $TODO = $todo;  
+  for my $test (@tests) {
+    my $expected = slurp(catfile($Bin, $folder, "${test}.out"))
+    or die "no output file for test $test";
+    my $output = eval { $tt->process("${test}.tal", $data) }; diag($@) if $@;
+    ok(!$@, "no errors from process");
+    is_xml($output || "", $expected, "test '$test' passed");
+  }
+}
 
 #########################
 sub slurp {

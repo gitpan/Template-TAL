@@ -24,8 +24,7 @@ use warnings;
 use strict;
 use Carp qw( croak );
 use base qw( Template::TAL::Language );
-
-use Template::TAL::TALES;
+use overload;
 
 sub namespace { 'http://xml.zope.org/namespaces/tal' }
 
@@ -34,18 +33,18 @@ sub tags { qw( define condition repeat replace content attributes omit-tag ) }
 ############
 # tag definitions
 
-sub process_define {
+sub process_tag_define {
   my ($self, $parent, $node, $value, $local_context, $global_context) = @_;
 
   # there may be multiple set statements in one attribute.
-  my @setters = Template::TAL::TALES->split($value);
+  my @setters = Template::TAL::ValueParser->split($value);
   for (@setters) {
     # we can set variables into the local context or the golbal context
     my ($set_context, $var, $set) = /^(local\b|global\b)?\s*(\S+)\s+(.*)$/;
     $set_context ||= "local"; # defaults
 
     # interpret the value part as a TALES string
-    my $result = Template::TAL::TALES->value($set, $local_context, $global_context);
+    my $result = $parent->parse_tales($set, $local_context, $global_context);
 
     if ($set_context eq 'local') {
       $local_context->{$var} = $result;
@@ -57,21 +56,23 @@ sub process_define {
   return $node; # don't replace node
 }
 
-sub process_condition {
+sub process_tag_condition {
   my ($self, $parent, $node, $value, $local_context, $global_context) = @_;
   # if the TALES string 'value' doesn't return a true value, remove this entire node
-  return Template::TAL::TALES->value($value, $local_context, $global_context) ? $node : ();
+  return $parent->parse_tales($value, $local_context, $global_context) ? $node : ();
 }
 
-sub process_repeat {
+sub process_tag_repeat {
   my ($self, $parent, $node, $value, $local_context, $global_context) = @_;
   my ($var, $list) = $value =~ /^(\S+)\s+(.*)$/;
   # $list should tales-parse to a list object, and this node will be repeated with
   # the variable named by $var set to each element of the list
 
   # coerce to a list if it's not already. Template toolkit does this, I like it.
-  my $items = Template::TAL::TALES->value($list, $local_context, $global_context);
-  my @items = UNIVERSAL::isa($items, "ARRAY") ? @$items : ($items);
+  my $items = $parent->parse_tales($list, $local_context, $global_context);
+  my @items =
+    ( UNIVERSAL::isa($items, "ARRAY") || overload::Method($items, '@{}') ) ?
+    @$items : ($items);
 
   # create a scratch node to hold the things we're going to hand
   # back. We do this rather than create a list, because the recursive
@@ -98,14 +99,14 @@ sub process_repeat {
       'even' => $index % 2 ? 0 : 1,
       'odd' => $index % 2 ? 1 : 0,
       'start' => $index == 0,
-      'end' => $index == scalar(@items),
+      'end' => $index == scalar(@items) - 1,
       'length' => scalar(@items),
       'letter' => "TODO", # hmm.
     };
     $index++;
 
     # now we've cloned this node, recurse into it, with the new local context
-    $parent->process_node( $new, $local_context, $global_context );
+    $parent->_process_node( $new, $local_context, $global_context );
   }
 
   # return a list of new nodes, which will get put into the original
@@ -114,12 +115,12 @@ sub process_repeat {
 }
 
 # replace the referenced node with the value of the tal:replace attribute
-sub process_replace {
+sub process_tag_replace {
   my ($self, $parent, $node, $value, $local_context, $global_context) = @_;
 
   my ($type, $set) = $value =~ /^(text\b|structure\b)?\s*(.*)$/;
   $type ||= 'text';
-  my $result = Template::TAL::TALES->value($set, $local_context, $global_context);
+  my $result = $parent->parse_tales($set, $local_context, $global_context);
 
   # replace the node with the content
   my @dom = $self->_dom_for_content( $type, $result );
@@ -127,12 +128,12 @@ sub process_replace {
 }
 
 # replace the contents of the node with the value of the tal:content attribute
-sub process_content {
+sub process_tag_content {
   my ($self, $parent, $node, $value, $local_context, $global_context) = @_;
 
   my ($type, $set) = $value =~ /^(text\b|structure\b)?\s*(.*)$/;
   $type ||= 'text';
-  my $result = Template::TAL::TALES->value($set, $local_context, $global_context);
+  my $result = $parent->parse_tales($set, $local_context, $global_context);
 
   # place the result into the node
   my @dom = $self->_dom_for_content( $type, $result );
@@ -161,24 +162,24 @@ sub _dom_for_content {
   }
 }
 
-sub process_attributes {
+sub process_tag_attributes {
   my ($self, $parent, $node, $value, $local_context, $global_context) = @_;
   # there may be >1 attribute set here
-  my @setters = Template::TAL::TALES->split($value);
+  my @setters = Template::TAL::ValueParser->split($value);
   for (@setters) {
     my ($var, $set) = /^\s*(\S+)\s+(.*)$/;
-    my $value = Template::TAL::TALES->value($set, $local_context, $global_context);
+    my $value = $parent->parse_tales($set, $local_context, $global_context);
     $node->setAttribute( $var, $value );
   }
   return $node; # don't replace node
 }
 
-sub process_omit_tag {
+sub process_tag_omit_tag {
   my ($self, $parent, $node, $value, $local_context, $global_context) = @_;
   # if value is false, don't do anything
-  return $node unless Template::TAL::TALES->value($value, $local_context, $global_context);
+  return $node unless $parent->parse_tales($value, $local_context, $global_context);
   # otherwise process this node as normal, and return the children of it
-  $parent->process_node( $node, $local_context, $global_context );
+  $parent->_process_node( $node, $local_context, $global_context );
   return $node->childNodes();
 }
 

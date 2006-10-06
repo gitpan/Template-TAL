@@ -4,6 +4,7 @@
       #<span tal:replace="repeat/colour/index" />:
       <span tal:replace="colour">Colour of the rainbow</span>
       <span tal:condition="repeat/colour/even" tal:replace="string:(even!)" />
+      <span tal:condition="repeat/colour/end" tal:replace="string:(end!)" />
     </div>
   </body>
 </html>

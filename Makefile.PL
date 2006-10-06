@@ -9,7 +9,8 @@ WriteMakefile
           'PREREQ_PM' => {
                            'Test::More' => 0,
                            'Test::XML' => 0,
-                           'XML::LibXML' => 0
+                           'XML::LibXML' => 0,
+                           'UNIVERSAL::require' => 0
                          }
         )
 ;

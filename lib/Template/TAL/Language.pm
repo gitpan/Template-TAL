@@ -4,15 +4,15 @@ Template::TAL::Language - base class for Template::TAL languages
 
 =head1 SYNOPSIS
 
-  my $template = Template::TAL::Template->new->source( "<foo>bar</foo>" );
-  $template->add_language(MyLanguage->new);
-  $template->process;
+  my $tal = Template::TAL->new();
+  $tal->add_language(MyLanguage->new);
+  $tal->process( $template, $data );
 
 =head1 DESCRIPTION
 
 To be as flexible as possible, the tag handling in Template::TAL is
 implemented as Language modules, which declare the namespace and the
-tags that they wish to handle, and are called from the 'process_node'
+tags that they wish to handle, and are called from the 'process_tag_node'
 method of Template::TAL::Template. So far, there is only one
 implemented language, L<Template::TAL::Language::TAL>, and there is no
 easy way of changing which languages are loaded by Template::TAL in
@@ -23,7 +23,7 @@ for adding Language modules will get a lot better.
 =head1 SUBCLASSING
 
 Assuming you want to create a new Language, subclass this module, and
-override the L<namespace> and L<tags> methods, and provide process_XXX
+override the L<namespace> and L<tags> methods, and provide process_tag_XXX
 methods for every tag your language contains. For instance:
 
   package MyLanguage;
@@ -31,7 +31,7 @@ methods for every tag your language contains. For instance:
   
   sub namespace { 'http://foo.bar' }
   sub tags {qw( bar )}
-  sub process_bar {
+  sub process_tag_bar {
     my ($self, $parent, $element, $value, $local_context, $global_context);
     return (); # just remove the node
   }
@@ -71,7 +71,7 @@ return the namespace of the tags this module implements
 
 =cut
 
-sub namespace { croak('namespace is abstract') }
+sub namespace { return }
 
 =item tags
 
@@ -82,7 +82,7 @@ handles.
 
 sub tags { () }
 
-=item process_<tagname>( caller, element, value, local_context, global_context )
+=item process_tag_<tagname>( caller, element, value, local_context, global_context )
 
 called to process tags with the given tagname. The params are
 
@@ -99,11 +99,11 @@ called to process tags with the given tagname. The params are
 =back
 
 Certian tag names, eg 'omit-tag', contain '-' characters, which will be converted
-to '_' characters for the method call, so define process_omit_tag { .. }.
+to '_' characters for the method call, so define process_tag_omit_tag { .. }.
 
 =cut
 
-# sub process_foo { ..
+# sub process_tag_foo { ..
 
 =back
 

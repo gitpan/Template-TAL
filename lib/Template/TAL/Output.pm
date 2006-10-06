@@ -64,7 +64,6 @@ returns a byte sequence representing the XML DOM passed.
 =cut
 
 sub render {
-  my ($self, $dom) = @_;
   croak("Template::TAL::Output is abstract - use a subclass");
 }
 

@@ -17,7 +17,7 @@ use warnings;
 use strict;
 use Carp qw( croak );
 use base qw( Template::TAL::Language );
-use Template::TAL::TALES;
+use Template::TAL::ValueParser;
 
 sub namespace { 'http://xml.zope.org/namespaces/metal' }
 
@@ -38,11 +38,10 @@ sub provider {
   return $self;
 }
 
-=cut
-
 sub process_define_macro {
   my ($self, $parent, $node, $value, $local_context, $global_context) = @_;
-  return $node; # don't replace node
+  $self->{macros}{ $value } = $node;
+  return (); # remove the macro definition node.
 }
 
 sub process_extend_macro {
@@ -52,7 +51,10 @@ sub process_extend_macro {
 
 sub process_use_macro {
   my ($self, $parent, $node, $value, $local_context, $global_context) = @_;
-  return $node; # don't replace node
+  my $macro = $self->{macros}{$value} or die "no such macro '$value'\n";
+  my $new = $macro->cloneNode(1); # deep clone
+  $parent->_process_node( $new, $local_context, $global_context );
+  return $new;
 }
 
 sub process_define_slot {

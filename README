@@ -92,6 +92,15 @@ METHODS
             string to create HTML. This can either be a class name of a
             loaded class, or an object instance.
 
+    languages
+        a listref of language plugins we will use when parsing. All
+        templates get at least the Template::TAL::Language:TAL language
+        module.
+
+    add_language( language module, module, module... )
+        adds a language to the list of those used by the template renderer.
+        'module' here can be a classname or an instance.
+
     process( $template, $data_hashref )
         Process the template with the passed data and return the resulting
         rendered byte sequence.
@@ -103,6 +112,12 @@ METHODS
 
         $data_hashref should be a reference to a hash containing the values
         that are to be substituted into the template.
+
+    parse_tales( value, context, context,... )
+        Parses a TALES string (see
+        http://www.zope.org/Wikis/DevSite/Projects/ZPT/TALES), looking in
+        each of the passed contexts in order for variable values, and
+        returns the value.
 
 ATTRIBUTES
     These are get/set chained accessor methods that can be used to alter the
