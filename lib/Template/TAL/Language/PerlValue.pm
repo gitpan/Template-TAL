@@ -45,6 +45,7 @@ use base qw( Template::TAL::Language );
 sub process_tales_perl {
   # use really weird variable names, to try to avoid clashing with things.
   my ($___class, $___path, $___contexts, $___plugins) = @_;
+  my $context = { map(%$_, reverse @$___contexts) };
   my $___res = eval($___path);
   die $@ if $@;
   return $___res;

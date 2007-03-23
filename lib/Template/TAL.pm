@@ -74,7 +74,7 @@ use Carp qw( croak );
 use UNIVERSAL::require;
 use Scalar::Util qw( blessed );
 
-our $VERSION = "0.9";
+our $VERSION = "0.91";
 
 use Template::TAL::Template;
 use Template::TAL::Provider;
